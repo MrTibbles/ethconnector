@@ -171,7 +171,56 @@ EthClient.prototype.deploy = function deploy(abi, code, account, value) {
     contract.new.apply(contract, args);
 };
 
-EthClient.prototype.compile = function(sourceFile, destFile, opts, cb) {
+EthClient.prototype.compileAndReturn = function(sourceFile, destFile, opts, cb) {
+    var self = this;
+    if (typeof opts !== "object") {
+        cb = opts;
+        opts = {};
+    }
+
+    var compilationResult;
+    var src;
+    return async.series([
+        function(cb) {
+            self.loadSol(sourceFile, function(err, _src) {
+                if (err) return cb(err);
+                src = _src;
+                cb();
+            });
+        },
+        function(cb) {
+            self.applyConstants(src, opts, function(err, _src) {
+                if (err) return cb(err);
+                src = _src;
+                cb();
+            });
+        },
+        function(cb) {
+            self.solCompile(src, function(err, result) {
+                if (err) return cb(err);
+                compilationResult = result;
+                cb();
+            });
+        },
+        function(cb) {
+            var contracts = [];
+            _.each(compilationResult, function(contract, contractName) {
+                if (contractName[0] === ":") contractName = contractName.substr(1);
+                var contractDesc = {
+                    name: contractName,
+                    abi: JSON.stringify(abi),
+                    bytecode: '0x' + contract.bytecode + ''
+                };
+                contracts.push(contractDesc)
+            });
+
+            return contracts;
+        }
+    ], cb);
+};
+
+
+EthClient.prototype.compileAndSave = function(sourceFile, destFile, opts, cb) {
     var self = this;
     if (typeof opts !== "object") {
         cb = opts;
